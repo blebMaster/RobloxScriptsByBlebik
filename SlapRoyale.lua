@@ -1175,7 +1175,7 @@ function smartHumanizedTurn(target)
     local targetCFrame = CFrame.lookAt(HRP.Position, Vector3.new(targetHRP.Position.X, HRP.Position.Y, targetHRP.Position.Z))
     local alpha = 0
     local time = 0
-    local targetAlpha = math.random(90, 100)/ 100
+    local targetAlpha = math.random(85, 100)/ 100
 
     targetCD = true
     plr.Character.Humanoid.AutoRotate = false
@@ -1187,7 +1187,7 @@ function smartHumanizedTurn(target)
         local targetCFrame = CFrame.lookAt(HRP.Position, Vector3.new(targetHRP.Position.X, HRP.Position.Y, targetHRP.Position.Z))
 
         local step = 0 
-        step = math.random(10, 40) / 100
+        step = math.random(20, 50) / 100
        
         local multiple = math.random(100000,150000)
         local microNoise = math.random(100, 10000)/ multiple
@@ -1204,7 +1204,7 @@ function smartHumanizedTurn(target)
     plr.Character.Humanoid.AutoRotate = true
     task.wait(1 - 0.02* time)
     targetCD = false
-end
+end   
 
 
 
@@ -1277,7 +1277,7 @@ input.InputEnded:Connect(onInputEnded)
 
 function inArena()
    if not plr.Character:FindFirstChild("isInArena").Value and not plr.Backpack:FindFirstChildOfClass("Tool") then
-      plr.Character:PivotTo(CFrame.new(-1210,330,4))
+      plr.Character:PivotTo(CFrame.new(-1310,330,4))
       task.wait(1)
        if not plr.Character:FindFirstChild("isInArena").Value and not plr.Backpack:FindFirstChildOfClass("Tool") then 
             inArena()
