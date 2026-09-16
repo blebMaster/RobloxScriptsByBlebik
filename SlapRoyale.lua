@@ -82,6 +82,8 @@ local AutoPerms = false
 local antiRagdollEnabled = false
 local SMOOTHNESS = 1
 local SRStats = false
+local TomahawkAura = false
+local TomahawkAuraRadius = 30
 local codes = {
    ["http://www.roblox.com/asset/?id=9648755440"] = "8", --1
    ["http://www.roblox.com/asset/?id=9648765536"] = "2", --2
@@ -640,6 +642,41 @@ SRTab:CreateSlider({
    end,
 })
 
+function InternalFunctions()
+   if not string.find(identifyexecutor(), "Xeno") and not string.find(identifyexecutor(), "Solara") then
+       SRTab:CreateToggle({
+         Name="Tomahawk aura ",
+         CurrentValue=TomahawkAura,
+         Callback=function(v)
+         TomahawkAura = v
+      end
+   })
+   SRTab:CreateSlider({
+      Name = "TomahawkAura Radius",
+      Range = {10, 50},
+      Increment = 1,
+      CurrentValue = TomahawkAuraRadius,
+      Callback = function(v)
+         TomahawkAuraRadius = v
+      end
+   })
+   end
+   RunService.Heartbeat:Connect(function()
+      if not TomahawkAura then return end
+      local Closest = getNearestPlayer(TomahawkAuraRadius)
+      if not Closest then return end 
+      local tool = plr.Character:FindFirstChildOfClass("Tool")
+      if not tool then return end
+      if tool.Name ~= "Tomahawk" then return end
+      local HRP = Closest:FindFirstChild("HumanoidRootPart")
+      if not HRP then return end
+      if raycast(plr.Character.HumanoidRootPart, HRP) then return end
+      local throw = game:GetService("ReplicatedStorage").Remotes.Throw
+      throw:FireServer(HRP.Position)
+    end)  
+end
+
+ InternalFunctions()
 
 SRTab:CreateToggle({
    Name="Auto Perms",
@@ -1249,25 +1286,28 @@ smartHumanizedTurn(Enemychar)
 end)
 
 
--- function getNearestPlayer(maxRadius)
---     local character = plr.Character
---     if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
---     local root = character.HumanoidRootPart
---     local closest = nil
---    for _, other in pairs(Players:GetChildren()) do
---       if table.find(friends,other.Name) then continue end 
---       if other ~= plr  and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
---          local dist = (other.Character.HumanoidRootPart.Position - root.Position).Magnitude
---          if dist > maxRadius then
---             continue
---          end
---          closest = other
---       end
---    end
--- if closest then
--- return closest.Character
--- end
--- end
+function getNearestPlayer(rad)
+    local character = plr.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local root = character.HumanoidRootPart
+    local closest = nil
+   for _, other in pairs(Players:GetPlayers()) do
+      if other ~= plr  and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
+         local dist = (other.Character.HumanoidRootPart.Position - root.Position).Magnitude
+         if not dist then continue end
+         if closest then
+            if  dist > closest then continue end
+         end   
+         if dist > rad then
+            continue
+         end
+         closest = other
+      end
+   end
+if closest then
+return closest.Character
+end
+end
 
 
 
