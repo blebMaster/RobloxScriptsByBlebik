@@ -84,7 +84,8 @@ local SMOOTHNESS = 1
 local SRStats = false
 local TomahawkAura = false
 local TomahawkAuraRadius = 30
-local codes = {
+local TomahawkAuraPrediction = 0.2
+local codes = {   
    ["http://www.roblox.com/asset/?id=9648755440"] = "8", --1
    ["http://www.roblox.com/asset/?id=9648765536"] = "2", --2
    ["http://www.roblox.com/asset/?id=9648723237"] = "3",--3
@@ -661,7 +662,17 @@ function InternalFunctions()
       end
    })
    end
-   RunService.Heartbeat:Connect(function()
+    SRTab:CreateSlider({
+      Name = "Tomahawk Prediction",
+      Range = {0, 1},
+      Increment = 0.1,
+      CurrentValue = TomahawkAuraPrediction,
+      Callback = function(v)
+         TomahawkAuraPrediction = v
+      end
+   })
+   end
+RunService.Heartbeat:Connect(function()
       if not TomahawkAura then return end
       local Closest = getNearestPlayer(TomahawkAuraRadius)
       if not Closest then return end 
@@ -670,13 +681,22 @@ function InternalFunctions()
       if tool.Name ~= "Tomahawk" then return end
       local HRP = Closest:FindFirstChild("HumanoidRootPart")
       if not HRP then return end
-      if raycast(plr.Character.HumanoidRootPart, HRP) then return end
       local throw = game:GetService("ReplicatedStorage").Remotes.Throw
-      throw:FireServer(HRP.Position)
-    end)  
-end
-
- InternalFunctions()
+      local velocity = HRP.AssemblyLinearVelocity
+      local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
+      throw:FireServer(predictPos)
+      local whereIThrow = Instance.new("Part")
+	   whereIThrow.Size = Vector3.new(1, 1, 1)
+	   whereIThrow.Anchored = true
+	   whereIThrow.CanCollide = false
+	   whereIThrow.Material = Enum.Material.Neon
+		whereIThrow.Color = Color3.fromRGB(255, 0, 0)
+      whereIThrow.Position = predictPos
+      task.delay(3, function()
+      whereIThrow:Destroy()
+      end) 
+   end)     
+InternalFunctions()
 
 SRTab:CreateToggle({
    Name="Auto Perms",
@@ -1294,6 +1314,7 @@ function getNearestPlayer(rad)
     local closestPos = math.huge
    for _, other in pairs(Players:GetPlayers()) do
       if other ~= plr  and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
+         if raycast(root, other.Character:FindFirstChild("HumanoidRootPart")) then continue end
          local dist = (other.Character.HumanoidRootPart.Position - root.Position).Magnitude
          if not dist then continue end
          if dist > closestPos then continue end
