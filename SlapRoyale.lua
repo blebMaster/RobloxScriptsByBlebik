@@ -1291,17 +1291,17 @@ function getNearestPlayer(rad)
     if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
     local root = character.HumanoidRootPart
     local closest = nil
+    local closestPos = math.huge
    for _, other in pairs(Players:GetPlayers()) do
       if other ~= plr  and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
          local dist = (other.Character.HumanoidRootPart.Position - root.Position).Magnitude
          if not dist then continue end
-         if closest then
-            if  dist > closest then continue end
-         end   
+         if dist > closestPos then continue end
          if dist > rad then
             continue
          end
          closest = other
+         closestPos = dist
       end
    end
 if closest then
