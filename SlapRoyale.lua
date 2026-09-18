@@ -134,26 +134,36 @@ end
 
 
 if game.Workspace:FindFirstChild("Shipments") then
-local CratesService = game.Workspace.Shipments.Crates
-CratesService.ChildAdded:Connect(function(object)
+   local CratesService = game.Workspace.Shipments.Crates
+   CratesService.ChildAdded:Connect(function(object)
       local highlight = Instance.new("Highlight")
       highlight.OutlineColor = Color3.fromRGB(181, 63, 5)
       highlight.FillColor = Color3.fromRGB(59, 20, 1)
-      highlight.Parent = object    
-end)
-local MeteorService = game.Workspace.Shipments.Instances
-MeteorService.ChildAdded:Connect(function(object)
-   Window:Notify({
-   Title = "METEOR SPAWNED",
-   Content="где то появился метеорит",
-   Duration = 5
-   })
+      highlight.Parent = object   
+      object:GetAttributeChangedSignal("onFire"):Connect(function()
+      highlight.OutlineColor = Color3.fromRGB(20, 219, 73)
+      highlight.FillColor = Color3.fromRGB(3, 138, 39)
+      Window:Notify({
+      Title = "Meteor cooled down",
+      Content="какой то метеор остыл",
+      Duration = 3
+      }) 
+      end)
+   end)
+   local MeteorService = game.Workspace.Shipments.Instances
+   MeteorService.ChildAdded:Connect(function(object)
+      Window:Notify({
+         Title = "METEOR SPAWNED",
+         Content="где то появился метеорит",
+         Duration = 5
+      })
    local highlight2 = Instance.new("Highlight")
    highlight2.OutlineColor = Color3.fromRGB(181, 63, 5)
    highlight2.FillColor = Color3.fromRGB(59, 20, 1)
    highlight2.Parent = object
-end)
+   end)
 end
+
 
 if game.Workspace:FindFirstChild("Items") then
 humanoidForHeal = plr.Character:FindFirstChildOfClass("Humanoid")
@@ -539,7 +549,7 @@ SRTab:CreateToggle({
 
 SRTab:CreateSlider({
    Name = "Slap Aura Hitbox",
-   Range = {10, 25},
+   Range = {7, 25},
    Increment = 1,
    CurrentValue = 15,
    Callback = function(v)
@@ -686,7 +696,8 @@ RunService.Heartbeat:Connect(function()
       local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
       throw:FireServer(predictPos)
       local whereIThrow = Instance.new("Part")
-	   whereIThrow.Size = Vector3.new(1, 1, 1)
+      whereIThrow.Parent = Workspace
+	   whereIThrow.Size = Vector3.new(1.5, 1.5, 1.5)
 	   whereIThrow.Anchored = true
 	   whereIThrow.CanCollide = false
 	   whereIThrow.Material = Enum.Material.Neon
@@ -1454,7 +1465,6 @@ else
    end
 end
 end)
-
 function updateStats(player)
     local char = player.Character
     if not char then return end
@@ -1463,20 +1473,19 @@ function updateStats(player)
     if not labels then createBillboard(player) return end
     local humanoid = char:FindFirstChild("Humanoid")
     if not humanoid then return end
+    
     local speed = humanoid.WalkSpeed or "?"
     local power = char:GetAttribute("Power") or "?"
     local jump =  humanoid.JumpPower or "?"
+    
+    local currentHealth = math.floor(humanoid.Health) or "?"
+    local maxHealth = math.floor(humanoid.MaxHealth) or "?"
+    
+    labels.HealthLabel.Text = "Health: ".. currentHealth .. " / " .. maxHealth
     labels.SpeedLabel.Text = "Speed: " .. tostring(speed)
     labels.PowerLabel.Text = "Power: " .. tostring(power)
     labels.JumpLabel.Text  = "Jump: " .. tostring(jump)
 end
-
-
-
-
-
-
-
 
 function createBillboard(player)
     local head = player.Character and player.Character:FindFirstChild("Head")
@@ -1486,21 +1495,33 @@ function createBillboard(player)
     Billboard.Name = "StatsGui"
     Billboard.Adornee = head
     Billboard.AlwaysOnTop = true
-    Billboard.Size = UDim2.new(15, 0, 10, 0) 
-    Billboard.StudsOffset = Vector3.new(0, 6.5, 0)
+    Billboard.Size = UDim2.new(15, 0, 12, 0)
+    Billboard.StudsOffset = Vector3.new(0, 7.5, 0)
     Billboard.MaxDistance = 500                   
     Billboard.LightInfluence = 0
     Billboard.Parent = head
 
+    local HealthLabel = Instance.new("TextLabel")
+    HealthLabel.Name = "HealthLabel"
+    HealthLabel.Size = UDim2.new(1, 0, 0.20, 0) 
+    HealthLabel.Position = UDim2.new(0, 0, 0, 0)
+    HealthLabel.BackgroundTransparency = 1
+    HealthLabel.TextColor3 = Color3.fromRGB(52, 235, 94)
+    HealthLabel.Font = Enum.Font.GothamBold
+    HealthLabel.TextStrokeTransparency = 0.3
+    HealthLabel.TextStrokeColor3 = Color3.new(0,0,0)
+    HealthLabel.TextScaled = true
+    HealthLabel.Parent = Billboard
+
     local NameLabel = Instance.new("TextLabel")
     NameLabel.Name = "NameLabel"
-    NameLabel.Size = UDim2.new(1, 0, 0.25, 0)
-    NameLabel.Position = UDim2.new(0, 0, 0, 0)
+    NameLabel.Size = UDim2.new(1, 0, 0.20, 0)
+    NameLabel.Position = UDim2.new(0, 0, 0.20, 0)
     NameLabel.BackgroundTransparency = 1
     if player == plr then
-    NameLabel.Text = "Undetected"
+        NameLabel.Text = "Undetected"
     else
-    NameLabel.Text = player.Name
+        NameLabel.Text = player.Name
     end
     NameLabel.TextColor3 = Color3.new(1,1,1)
     NameLabel.Font = Enum.Font.GothamBold
@@ -1509,11 +1530,10 @@ function createBillboard(player)
     NameLabel.TextScaled = true
     NameLabel.Parent = Billboard
 
-
     local SpeedLabel = Instance.new("TextLabel")
     SpeedLabel.Name = "SpeedLabel"
-    SpeedLabel.Size = UDim2.new(1, 0, 0.25, 0)
-    SpeedLabel.Position = UDim2.new(0, 0, 0.25, 0)
+    SpeedLabel.Size = UDim2.new(1, 0, 0.20, 0)
+    SpeedLabel.Position = UDim2.new(0, 0, 0.40, 0)
     SpeedLabel.BackgroundTransparency = 1
     SpeedLabel.TextColor3 = Colors.Speed
     SpeedLabel.Font = Enum.Font.GothamSemibold
@@ -1522,11 +1542,10 @@ function createBillboard(player)
     SpeedLabel.TextScaled = true 
     SpeedLabel.Parent = Billboard
 
-
     local PowerLabel = Instance.new("TextLabel")
     PowerLabel.Name = "PowerLabel"
-    PowerLabel.Size = UDim2.new(1, 0, 0.25, 0)
-    PowerLabel.Position = UDim2.new(0, 0, 0.50, 0)
+    PowerLabel.Size = UDim2.new(1, 0, 0.20, 0)
+    PowerLabel.Position = UDim2.new(0, 0, 0.60, 0)
     PowerLabel.BackgroundTransparency = 1
     PowerLabel.TextColor3 = Colors.Power
     PowerLabel.Font = Enum.Font.GothamSemibold
@@ -1535,11 +1554,10 @@ function createBillboard(player)
     PowerLabel.TextScaled = true 
     PowerLabel.Parent = Billboard
 
-
     local JumpLabel = Instance.new("TextLabel")
     JumpLabel.Name = "JumpLabel"
-    JumpLabel.Size = UDim2.new(1, 0, 0.25, 0)
-    JumpLabel.Position = UDim2.new(0, 0, 0.75, 0)
+    JumpLabel.Size = UDim2.new(1, 0, 0.20, 0)
+    JumpLabel.Position = UDim2.new(0, 0, 0.80, 0)
     JumpLabel.BackgroundTransparency = 1
     JumpLabel.TextColor3 = Colors.Jump
     JumpLabel.Font = Enum.Font.GothamSemibold
@@ -1547,7 +1565,6 @@ function createBillboard(player)
     JumpLabel.TextStrokeColor3 = Color3.new(0,0,0)
     JumpLabel.TextScaled = true 
     JumpLabel.Parent = Billboard
-
     updateStats(player)
 end
 
