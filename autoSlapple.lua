@@ -1,6 +1,17 @@
     local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
 local TeleportService = game:GetService("TeleportService")
+
+
+function howManySlappleActive()
+    local n = 0
+    for i,slapple in pairs(game.Workspace.Arena.island5.Slapples:GetChildren()) do
+      if slapple:FindFirstChildOfClass("MeshPart").Transparency == 1 then continue end
+      n += 1
+    end
+    return n
+end
+
 function inArena()
    if not plr.Character then
       task.wait(1)
@@ -104,10 +115,14 @@ function CollectSlapple(obj)
       end
 end
 function sborslapov()
+    if howManySlappleActive() == 0 then
+        Serverhop()
+        return
+    end    
+    plr.Character.HumanoidRootPart.Anchored = false
    for i,slapple in pairs(game.Workspace.Arena.island5.Slapples:GetChildren()) do
      CollectSlapple(slapple)
    end
-   plr.Character.HumanoidRootPart.Anchored = false
    task.wait(4)
    Serverhop()
 end
