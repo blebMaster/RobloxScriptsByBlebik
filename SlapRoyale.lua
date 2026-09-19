@@ -76,6 +76,7 @@ local SRStats = false
 local TomahawkAura = false
 local TomahawkAuraRadius = 30
 local TomahawkAuraPrediction = 0.2
+local TomahawkAutoPredict = true
 local codes = {   
    ["http://www.roblox.com/asset/?id=9648755440"] = "8", --1
    ["http://www.roblox.com/asset/?id=9648765536"] = "2", --2
@@ -448,7 +449,6 @@ SRTab:CreateToggle({
          SRStats = v
          if v then
             for i,v in pairs(Players:GetPlayers()) do 
-               print(v.Name)
                createBillboard(v)
             end
          else
@@ -494,25 +494,6 @@ SRTab:CreateToggle({
    CurrentValue=false,
    Callback=function(v)
        notify = v
-   end
-})
-
-
-
-
-
-
-SRTab:CreateToggle({
-   Name="Auto Slap ",
-   CurrentValue=false,
-   Callback=function(v)
-      if v then
-         setupCharacter2()
-      else
-         if plr.Character:FindFirstChild("ItemDetector") then
-         plr.Character.ItemDetector:Destroy()
-         end
-      end
    end
 })
 
@@ -634,7 +615,7 @@ function InternalFunctions()
    })
    SRTab:CreateSlider({
       Name = "TomahawkAura Radius",
-      Range = {10, 50},
+      Range = {15, 70},
       Increment = 1,
       CurrentValue = TomahawkAuraRadius,
       Callback = function(v)
@@ -646,11 +627,20 @@ function InternalFunctions()
       Name = "Tomahawk Prediction",
       Range = {0, 1},
       Increment = 0.1,
+      suffix = "sec",
       CurrentValue = TomahawkAuraPrediction,
       Callback = function(v)
          TomahawkAuraPrediction = v
       end
    })
+   local AutoPredict = SRTab:CreateToggle({
+         Name="Tomahawk Auto Prediction ",
+         CurrentValue=TomahawkAutoPredict,
+         Callback=function(v)
+         TomahawkAutoPredict = v
+      end
+   })
+   AutoPredict:Set(true,true)
    end
 RunService.Heartbeat:Connect(function()
       if not TomahawkAura then return end
@@ -661,9 +651,15 @@ RunService.Heartbeat:Connect(function()
       if tool.Name ~= "Tomahawk" then return end
       local HRP = Closest:FindFirstChild("HumanoidRootPart")
       if not HRP then return end
+      local yourHRP = plr.Character.HumanoidRootPart
       local throw = game:GetService("ReplicatedStorage").Remotes.Throw
-      local velocity = HRP.AssemblyLinearVelocity
-      local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
+      if TomahawkAutoPredict then
+          local velocity = (yourHRP.Position-HRP.Position).Magnitude / 100
+          local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
+      else
+         local velocity = HRP.AssemblyLinearVelocity
+         local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
+      end
       throw:FireServer(predictPos)
       local whereIThrow = Instance.new("Part")
       whereIThrow.Parent = Workspace
@@ -761,59 +757,25 @@ SRTab:CreateKeybind({
    end,
 })
 --Функции
-function setupCharacter2()
-local hrp = plr.Character:WaitForChild("HumanoidRootPart")
-local detector = Instance.new("Part")
-detector.Name = "ItemDetector"
-detector.Size = Vector3.new(11, 5, 11)
-detector.Transparency = 0.7
-detector.CanCollide = false
-detector.Anchored = false
-detector.Massless = true
-detector.Parent = plr.Character
-detector.CFrame = hrp.CFrame
-local weld = Instance.new("Weld")
-weld.Part0 = detector
-weld.Part1 = hrp
-weld.Parent = detector
-   detector.Touched:Connect(function(hit)
-       slap(hit)
-   end)
-end
-
 function antiRagdoll()
-    if not plr.Character then return end
-    local character = plr.Character
-    for i, part in ipairs(character:GetChildren()) do
-        if part.Name:find("FakePart") then
-            part:Destroy()
-        end
-    end
-    local humanoid = character:FindFirstChild("Humanoid")
-    if humanoid then
-        humanoid.PlatformStand = false
-        humanoid.Sit = false
-        humanoid:ChangeState(Enum.HumanoidStateType.Running)
-    end
-    
-    for index, obj in ipairs(character:GetDescendants()) do
-        if obj:IsA("BallSocketConstraint") or obj:IsA("NoCollisionConstraint") then
-            if obj.Parent and obj.Parent.Name:find("Fake") then
-                obj:Destroy()
-            end
-        end
-    end
+   if not plr.Character then return end
+   local character = plr.Character
+   if toolChecker() then
+      local tool = character:FindFirstChildOfClass("Tool")
+      local handle = tool:FindFirstAncestorWhichIsA("BasePart")
+      if not handle then handle = tool:FindFirstChild("Handle") end
+      if character:GetAttribute("Ragdolled") then
+         handle.Anchored = true
+      elseif character:GetAttribute("Ragdolled") == false then
+         handle.Anchored = false
+      end 
+   end   
 end   
 
 RunService.Heartbeat:Connect(function()
     if not antiRagdollEnabled then return end
     antiRagdoll()
 end)
-
-
-
-
-
 
 RunService.Heartbeat:Connect(function()
     if not slapAura then return end
@@ -856,6 +818,7 @@ function kilka(hit)
     if not targetChar:FindFirstChildOfClass("Humanoid") or targetChar.Name == "Crate" then return end
     if targetChar:FindFirstChildOfClass("ForceField") then return end
     if ignorePlayers[targetChar] or youInRagdoll then return end
+    if plr.Character:FindFirstChild("FakePart Right Arm") then youInragdoll() return end
     if targetCD then return end
     local myRoot = plr.Character:FindFirstChild("HumanoidRootPart")
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
@@ -877,16 +840,18 @@ function kilka(hit)
      myRoot.CFrame = CFrame.new(myRoot.Position, Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z))
     for i = 1,25 do
       glove.Position = hit.Position
-      if ignorePlayers[targetChar] or (targetRoot.Position - myRoot.Position).Magnitude > 15 then break end
+      if targetChar:FindFirstChild("FakePart Right Arm") or (targetRoot.Position - myRoot.Position).Magnitude > 20 then break end
       task.wait(0.02)
     end
     glove.Position = tool.Handle.Position + (tool.Handle.CFrame.UpVector * 2)
-    task.wait(0.10) 
+    task.wait(0.10)
+    if targetChar:FindFirstChild("FakePart Right Arm") then
+      addToIgnore(targetChar)
+    end    
    plr.Character.Humanoid.AutoRotate = true
     task.wait(0.50)
     targetCD = false
 end
-
 function getClosestPart(parent)
    local playerCharacter = plr.Character
 	local rootPart = playerCharacter:FindFirstChild("HumanoidRootPart")
@@ -908,47 +873,6 @@ function getClosestPart(parent)
 	return closestPart, shortestDistance
 end
 
-function slap(hit)
-if not hit.Parent:FindFirstChildOfClass("Humanoid") or hit.Parent.Name == "Crate" or hit.ClassName == "Tool" then return end
-         if not toolChecker() then return end
-         if ignorePlayers[hit.Parent] or youInRagdoll then return end
-         if targetCD == true then return end
-         local isFound = table.find(friends, hit.Parent.Name)
-         if isFound then return end
-         mouse1click()
-         print(hit.ClassName)
-         if not skipFlick then
-         task.wait(0.1)
-         end
-         local root = plr.Character:FindFirstChild("HumanoidRootPart")
-         print("расстояние рутов" .. tostring(hit.Position.Y - root.Position.Y))
-         if  (hit.Position.Y - root.Position.Y) < -1 then return end
-         if (hit.Position.Y - root.Position.Y) > 2 then 
-            HitLater()
-         end
-         plr.Character.Humanoid.AutoRotate = false
-         local targetRoot = hit.Parent:FindFirstChild("Head")
-         if not root or not targetRoot then
-         plr.Character.Humanoid.AutoRotate = true
-         return 
-          end
-         root.CFrame = CFrame.new(root.Position, Vector3.new(targetRoot.Position.X, root.Position.Y, targetRoot.Position.Z))
-         targetCD = true
-         task.wait(0.2)
-         plr.Character.Humanoid.AutoRotate = true
-         task.wait(0.7)
-         targetCD = false
-         
-end
-
-function HitLater(obj)
-   while (obj.Position.Y - root.Position.Y) > 2 do
-      if (obj.Position.Y - root.Position.Y) > 5 then return end
-      task.wait(0.01)
-   end       
-   slap(obj)
-end
-
 function toolChecker()
 local tool = plr.Character:FindFirstChildOfClass("Tool")
 if not tool or tool.Name == "Glider" then return end
@@ -960,24 +884,20 @@ end
 
 
 function youInragdoll()
+   if youInRagdoll then return end
    youInRagdoll = true
    local leg = plr.Character:FindFirstChild("Right Leg")
    local leg2 = plr.Character:FindFirstChild("Left Leg")
-   if speedsUsed  then
-      leg.Position = leg2.Position + (leg2.CFrame.RightVector * 1)
-   end
    while plr.Character:FindFirstChild("FakePart Right Arm") do
       if plr.Character.Humanoid.Health <= 0 then break end
       task.wait() 
    end
-   if speedsUsed then
-      leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
-   end  
    youInRagdoll = false
 end
 
 
 function addToIgnore(player)
+   if ignorePlayers[player] then return end
    task.spawn(function()
       ignorePlayers[player] = true
       
@@ -1003,11 +923,8 @@ end
 
 
 RunService.RenderStepped:Connect(function()
-   if plr.Character and plr.Character:FindFirstChild("FakePart Right Arm") then
-      youInragdoll()
-   end
    for i,v in pairs(Players:GetPlayers()) do
-      if v.Character and v.Character:FindFirstChild("FakePart Right Arm") then
+      if v.Character and v.Character:FindFirstChild("FakePart Right Arm") and not ignorePlayers[v.Character] then
          addToIgnore(v.Character)
       end   
    end   
@@ -1122,7 +1039,7 @@ function platformChangeStatus()
         else
         local plat = Instance.new("Part")
             plat.Position = Vector3.new(0,-15,0)
-            plat.Size = Vector3.new(20000,0.5,20000)
+            plat.Size = Vector3.new(2048,0.5,2048)
             plat.CanCollide = true
             plat.Anchored = true
             plat.Transparency = 0.5
@@ -1174,14 +1091,12 @@ function smartHumanizedTurn(target)
         local microNoise = math.random(100, 10000)/ multiple
         alpha = alpha + step + microNoise
         time += 1
-        print(alpha)
         if alpha >= targetAlpha then
             break
         end
         HRP.CFrame = HRP.CFrame:Lerp(targetCFrame, alpha)
         task.wait(0.05)
     end
-    print(time)
     plr.Character.Humanoid.AutoRotate = true
     task.wait(1 - 0.02* time)
     targetCD = false
