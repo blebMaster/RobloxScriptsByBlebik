@@ -17,7 +17,6 @@ local MovementTab = Window:CreateTab({ name = "All games"})
 local SBTab = Window:CreateTab({ name = "Slap Battles"})
 local FriendsTab = Window:CreateTab({ name = "Friends"})
 local SRTab = Window:CreateTab({ name = "Slap Royale"})
-local RivalsTab = Window:CreateTab({ name = "Rivals"})
 local MiscTab = Window:CreateTab({ name = "other"})
 --Services
 local input = game:GetService("UserInputService")
@@ -35,12 +34,7 @@ local autoFlick = false
 local esp = false
 local notify = false -- SR Items Notify
 local EspUpdCd = 3
-local triggerBot = false
-local onlyHeads = false
-local AIM_ASSIST_RANGE = 250
-local AIM_ASSIST_FOV = 180
 local FriendEspColor = Color3.fromRGB(66, 245, 87) 
-local selectedCFG = nil
 local items = {
     ["Bomb"] = Color3.fromRGB(26, 25, 25), 
     ["Bull's essence"] = Color3.fromRGB(77, 29, 0), 
@@ -77,10 +71,8 @@ local AimtargetPlayer = nil
 local FriendAdd = nil
 local AutoHeal = false
 local hpHeal = 20
-local lastCheck = 0
 local AutoPerms = false
 local antiRagdollEnabled = false
-local SMOOTHNESS = 1
 local SRStats = false
 local TomahawkAura = false
 local TomahawkAuraRadius = 30
@@ -116,10 +108,6 @@ local humanoidForHeal = nil
 local bhop = false
 local pressedD = false
 local pressedA = false
-local tpdist = 10
-local tpcd = 2
-local TpSpeed = false
-local SRTp = false
 local TpTolayerName = nil
 
 
@@ -570,17 +558,26 @@ SRTab:CreateSlider({
    CurrentValue = SpeedStrengh,
    Callback = function(v)
       SpeedStrengh = v
+      if speedsUsed then
+         local leg = plr.Character:FindFirstChild("Right Leg")
+         local leg2 = plr.Character:FindFirstChild("Left Leg")
+         if not leg or not leg2 then return end
+         leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
+         leg.CanCollide = false
+         leg.CanTouch = false
+      end  
    end,
 })
 
 
 SRTab:CreateToggle({
-   Name="Speed hack ",
+   Name="Speed hack",
    CurrentValue=false,
    Callback=function(v)
        if v then
          local leg = plr.Character:FindFirstChild("Right Leg")
          local leg2 = plr.Character:FindFirstChild("Left Leg")
+          if not leg or not leg2 then return end
          leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
          leg.CanCollide = false
          leg.CanTouch = false
@@ -588,6 +585,7 @@ SRTab:CreateToggle({
        else
          local object1 = plr.Character:FindFirstChild("Right Leg")
          local object2 = plr.Character:FindFirstChild("Left Leg")
+          if not object1 or not object2 then return end
          object1.Position = object2.Position + (object2.CFrame.RightVector * 1)
          object1.CanCollide = true
          object1.CanTouch = true
@@ -597,33 +595,6 @@ SRTab:CreateToggle({
    end
 })
 
-
-SRTab:CreateToggle({
-   Name="Tp Speeds ",
-   CurrentValue=SRTp,
-   Callback=function(v)
-      SRTp = v
-   end
-})
-
-SRTab:CreateSlider({
-   Name = "Tp Strengh",
-   Range = {3, 15},
-   Increment = 1,
-   CurrentValue = tpdist,
-   Callback = function(v)
-      tpdist = v
-   end,
-})
-SRTab:CreateSlider({
-   Name = "Tp Cooldown",
-   Range = {0.5, 5},
-   Increment = 0.5,
-   CurrentValue = tpcd,
-   Callback = function(v)
-      tpcd = v
-   end,
-})
 
 
 
@@ -790,65 +761,7 @@ SRTab:CreateKeybind({
             })
    end,
 })
-
-
-RivalsTab:CreateToggle({
-   Name="Triger Bot",
-   CurrentValue=false,
-   Callback=function(a)
-      triggerBot = a
-   end
-})
-RivalsTab:CreateDropdown({
-   Name="Select Player",
-   Options=getPlayers(),
-   Callback=function(opt)
-      local name = typeof(opt)=="table" and opt[1] or opt
-      AimtargetPlayer = name
-   end
-})
-RivalsTab:CreateToggle({
-   Name="Aim Assist",
-   CurrentValue=false,
-   Callback=function(a)
-      aimAssist = a
-      plr.Character:FindFirstChildOfClass("Humanoid").AutoRotate = a
-   end
-})
-
-RivalsTab:CreateSlider({
-   Name = "AIM ASSIST FOV",
-   Range = {25, 180},
-   Increment = 1,
-   CurrentValue = AIM_ASSIST_FOV ,
-   Callback = function(v)
-      AIM_ASSIST_FOV = v
-   end,
-})
-
-RivalsTab:CreateSlider({
-   Name = "AIM ASSIST STRENGH",
-   Range = {0.5, 1},
-   Increment = 0.1,
-   CurrentValue = SMOOTHNESS ,
-   Callback = function(v)
-      SMOOTHNESS = v
-   end,
-})
-
-RivalsTab:CreateToggle({
-   Name="Only heads",
-   CurrentValue=false,
-   Callback=function(a)
-      onlyHeads = a
-   end
-})
-
-
-
 --Функции
-
-
 function setupCharacter2()
 local hrp = plr.Character:WaitForChild("HumanoidRootPart")
 local detector = Instance.new("Part")
@@ -1050,19 +963,31 @@ if not tool or tool.Name == "Glider" then return end
 return true
 end
 
+
+
+RunService.RenderStepped:Connect(function()
+   if plr.Character and plr.Character:FindFirstChild("FakePart Right Arm") then
+      youInRagdoll()
+   end
+end)  
+
+
 function youInragdoll()
    youInRagdoll = true
    local leg = plr.Character:FindFirstChild("Right Leg")
    local leg2 = plr.Character:FindFirstChild("Left Leg")
-    if speedsUsed  then
+   if speedsUsed  then
       leg.Position = leg2.Position + (leg2.CFrame.RightVector * 1)
    end
    while plr.Character:FindFirstChild("FakePart Right Arm") do
-   if plr.Character.Humanoid.Health <= 0 then break end
-   task.wait()
-   end 
-   if speedsUsed then
-      leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
+      if speedsUsed  then
+         leg.Position = leg2.Position + (leg2.CFrame.RightVector * 1)
+      end
+      if plr.Character.Humanoid.Health <= 0 then break end
+      task.wait()
+      if speedsUsed then
+         leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
+      end   
    end
    youInRagdoll = false
 end
@@ -1402,69 +1327,7 @@ end
 
 
 
-local function getTargetRoot()
-    if not AimtargetPlayer or AimtargetPlayer == "" then return nil end
-    
-    local targetPlayer = Players:FindFirstChild(AimtargetPlayer)
-    if not targetPlayer then return nil end
-    
-    local character = targetPlayer.Character
-    if not character then return nil end
-    local humanoid = character:FindFirstChild("Humanoid")
-    local root = nil
-    if onlyHeads then
-    root = character:FindFirstChild("Head")
-    else
-    root = character:FindFirstChild("HumanoidRootPart")
-    end 
-    if humanoid and humanoid.Health > 0 and root then
-        return root
-    end
- 
-    return nil
-end
 
-RunService.RenderStepped:Connect(function()
-   if aimAssist then
-        local targetRoot = getTargetRoot()
-      if targetRoot and plr.Character then
-         local char = plr.Character
-         local head = char:FindFirstChild("Head")
-         local humanoid = char:FindFirstChild("Humanoid")
-         local currentCFrame = camera.CFrame
-         local targetCFrame = CFrame.lookAt(currentCFrame.Position, targetRoot.Position)
-         camera.CFrame = currentCFrame:Lerp(targetCFrame, SMOOTHNESS)
-
-         if head and head:FindFirstChild("Neck") then
-            local neck = head.Neck
-            local headPos = head.Position
-            local lookDirection = (targetRoot.Position - headPos).Unit
-                
-            local targetHeadCFrame = CFrame.lookAt(headPos, headPos + lookDirection)
-            neck.C0 = neck.C0:Lerp(
-                  CFrame.new(neck.C0.Position) * targetHeadCFrame.Rotation, 
-                  1.6
-            )
-         end
-      end         
-   end  
-if not triggerBot then return end
-local target = Mouse.Target
-if not target then return end
-local isFriend = table.find(friends,target.Parent.Name)
-if isFriend then return end    
-if onlyHeads then
-   if target.Name == "Head" or target.Name == "HitboxHead" then
-      mouse1click()
-      return
-	end
-else
-   if target.Parent:FindFirstChild("HumanoidRootPart") then
-      mouse1click()
-      return
-   end
-end
-end)
 function updateStats(player)
     local char = player.Character
     if not char then return end
@@ -1581,50 +1444,6 @@ function getBestHealItem()
    print("Не найденно хила")
 end
 
-
-
-
-
-
-
-
-
-
-
-
-function tpSpeed()
-task.spawn(function()
-   while task.wait(tpcd) do
-      hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-      
-      for i=1,3 do
-         if not TpSpeed or not hrp or not SRTp then break end
-         
-         local lookVector = hrp.CFrame.LookVector
-         local rayDirection = lookVector * tpdist
-         
-         local raycastParams = RaycastParams.new()
-         raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-         raycastParams.FilterDescendantsInstances = {plr.Character} -- Игнорируем своего персонажа
-         
-         local raycastResult = workspace:Raycast(hrp.Position, rayDirection, raycastParams)
-         
-         if raycastResult then
-            local hitPosition = raycastResult.Position
-            local safePosition = hitPosition - (lookVector * 2) 
-            
-            hrp.CFrame = CFrame.new(safePosition) * (hrp.CFrame - hrp.CFrame.Position)
-         else
-            hrp.CFrame = hrp.CFrame + rayDirection
-         end
-         
-         task.wait(1)
-      end
-   end
-end)
-end
-
-  
 
 function onItemAdded(item)
    if not AutoPerms then return end
