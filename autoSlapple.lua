@@ -110,7 +110,7 @@ function CollectSlapple(obj)
       task.wait(0.2)
       plr.Character.HumanoidRootPart.Anchored = false
       task.wait(0.5)
-      if obj:FindFirstChildOfClass("MeshPart").Transparency == 0 then
+      if obj:FindFirstChildOfClass("MeshPart").Transparency ~= 0 then
          CollectSlapple(obj)
       end
 end
@@ -118,8 +118,8 @@ function sborslapov()
     if howManySlappleActive() == 0 then
         Serverhop()
         return
-    end    
-    plr.Character.HumanoidRootPart.Anchored = false
+    end 
+    plr.Character:WaitForChild("HumanoidRootPart").Anchored = false
    for i,slapple in pairs(game.Workspace.Arena.island5.Slapples:GetChildren()) do
      CollectSlapple(slapple)
    end
