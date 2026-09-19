@@ -54,7 +54,6 @@ local items = {
     ["Tomahawk"] = Color3.fromRGB(109, 115, 115),
     ["Healing Potion"] = Color3.fromRGB(240, 98, 221),
 }
-local nameForCfg = nil
 local healItems = {"Apple","Bandage","First Aid Kit","Healing Potion"}
 local Permsitems = {"Bull's essence","Frog Potion","Speed Potion","Boba","Potion of Strength"}
 local SpeedStrengh = 15
@@ -968,15 +967,12 @@ function youInragdoll()
       leg.Position = leg2.Position + (leg2.CFrame.RightVector * 1)
    end
    while plr.Character:FindFirstChild("FakePart Right Arm") do
-      if speedsUsed  then
-         leg.Position = leg2.Position + (leg2.CFrame.RightVector * 1)
-      end
       if plr.Character.Humanoid.Health <= 0 then break end
-      task.wait()
-      if speedsUsed then
-         leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
-      end   
+      task.wait() 
    end
+   if speedsUsed then
+      leg.Position = leg2.Position + (leg2.CFrame.RightVector * SpeedStrengh)
+   end  
    youInRagdoll = false
 end
 
@@ -1097,9 +1093,6 @@ function onInputBegan(input, gameProcessed)
        if input.KeyCode == Enum.KeyCode.Q then
           mouseTarget()
           Childrenoftarget(Mouse.Target)
-      end  
-      if input.KeyCode == Enum.KeyCode.W then
-      TpSpeed= true
       end
       if input.KeyCode == Enum.KeyCode.D then
       pressedD = true
@@ -1110,9 +1103,6 @@ function onInputBegan(input, gameProcessed)
 end
 
 function onInputEnded(input, gameProcessedEvent)
- if input.KeyCode == Enum.KeyCode.W then
-  TpSpeed = false
- end
   if input.KeyCode == Enum.KeyCode.D then
   pressedD = false
  end
@@ -1627,5 +1617,4 @@ delay(5,function()
 end)
 delay(5,espUpd)
 delay(5,updStat)
-delay(5,tpSpeed)
 print("готов к работе")
