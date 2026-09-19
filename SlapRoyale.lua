@@ -857,8 +857,6 @@ function kilka(hit)
     if not targetChar:FindFirstChildOfClass("Humanoid") or targetChar.Name == "Crate" then return end
     if targetChar:FindFirstChildOfClass("ForceField") then return end
     if ignorePlayers[targetChar] or youInRagdoll then return end
-    if plr.Character:FindFirstChild("FakePart Right Arm") then youInragdoll() return end
-    if targetChar:FindFirstChild("FakePart Right Arm") then addToIgnore(targetChar) return end
     if targetCD then return end
     local myRoot = plr.Character:FindFirstChild("HumanoidRootPart")
     local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
@@ -880,14 +878,11 @@ function kilka(hit)
      myRoot.CFrame = CFrame.new(myRoot.Position, Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z))
     for i = 1,25 do
       glove.Position = hit.Position
-      if targetChar:FindFirstChild("FakePart Right Arm") or (targetRoot.Position - myRoot.Position).Magnitude > 20 then break end
+      if ignorePlayers[targetChar] or (targetRoot.Position - myRoot.Position).Magnitude > 15 then break end
       task.wait(0.02)
     end
     glove.Position = tool.Handle.Position + (tool.Handle.CFrame.UpVector * 2)
-    task.wait(0.10)
-    if targetChar:FindFirstChild("FakePart Right Arm") then
-      addToIgnore(targetChar)
-    end    
+    task.wait(0.10) 
    plr.Character.Humanoid.AutoRotate = true
     task.wait(0.50)
     targetCD = false
@@ -918,8 +913,6 @@ function slap(hit)
 if not hit.Parent:FindFirstChildOfClass("Humanoid") or hit.Parent.Name == "Crate" or hit.ClassName == "Tool" then return end
          if not toolChecker() then return end
          if ignorePlayers[hit.Parent] or youInRagdoll then return end
-         if plr.Character:FindFirstChild("FakePart Right Arm") then youInragdoll() return end
-         if hit.Parent:FindFirstChild("FakePart Right Arm")  then addToIgnore(hit.Parent) return end
          if targetCD == true then return end
          local isFound = table.find(friends, hit.Parent.Name)
          if isFound then return end
@@ -965,11 +958,6 @@ end
 
 
 
-RunService.RenderStepped:Connect(function()
-   if plr.Character and plr.Character:FindFirstChild("FakePart Right Arm") then
-      youInRagdoll()
-   end
-end)  
 
 
 function youInragdoll()
@@ -1016,6 +1004,18 @@ function addToIgnore(player)
       end
    end)
 end
+
+
+RunService.RenderStepped:Connect(function()
+   if plr.Character and plr.Character:FindFirstChild("FakePart Right Arm") then
+      youInragdoll()
+   end
+   for i,v in pairs(Players:GetPlayers()) do
+      if v.Character and v.Character:FindFirstChild("FakePart Right Arm") then
+         addToIgnore(v.Character)
+      end   
+   end   
+end)  
 
 function toolActivate()
 local tool = plr.Character:FindFirstChildOfClass("Tool")
@@ -1173,12 +1173,10 @@ function smartHumanizedTurn(target)
     targetCD = true
     plr.Character.Humanoid.AutoRotate = false
     while alpha < targetAlpha do
-      if target:FindFirstChild("FakePart Right Arm")  then addToIgnore(target) break end
       if youInRagdoll then break end
       if ignorePlayers[target] then break end
         local targetHRP = target:FindFirstChild("HumanoidRootPart")
         local targetCFrame = CFrame.lookAt(HRP.Position, Vector3.new(targetHRP.Position.X, HRP.Position.Y, targetHRP.Position.Z))
-
         local step = 0 
         step = math.random(20, 50) / 100
        
