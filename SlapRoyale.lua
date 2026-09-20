@@ -655,6 +655,7 @@ RunService.Heartbeat:Connect(function()
       local throw = game:GetService("ReplicatedStorage").Remotes.Throw
       if TomahawkAutoPredict then
           local velocity = (yourHRP.Position-HRP.Position).Magnitude / 100
+		  print("Tomahawk throwed with prediction: " .. velocity)
           local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
       else
          local velocity = HRP.AssemblyLinearVelocity
