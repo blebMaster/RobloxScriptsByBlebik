@@ -1,4 +1,4 @@
-    local Players = game:GetService("Players")
+local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
 local TeleportService = game:GetService("TeleportService")
 
@@ -53,7 +53,7 @@ function Serverhop()
             if not isTeleporting then
                 local servers = {}
                 local successReq, req = pcall(function()
-                    return game:HttpGet("https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true")
+                    return game:HttpGet("https://games.roblox.com/v1/games/"..tostring(6403373529).."/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true")
                 end)
                 
                 if successReq then
@@ -115,17 +115,22 @@ function CollectSlapple(obj)
       end
 end
 function sborslapov()
+    plr = Players.LocalPlayer
+    if not plr or not plr.Character then
+        task.wait(1)
+        sborslapov()
+    end    
+    local Arena = game.Workspace:WaitForChild("Arena")
     if howManySlappleActive() == 0 then
         Serverhop()
         return
     end 
     plr.Character:WaitForChild("HumanoidRootPart").Anchored = false
-   for i,slapple in pairs(game.Workspace.Arena.island5.Slapples:GetChildren()) do
+   for i,slapple in pairs(Arena.island5.Slapples:GetChildren()) do
      CollectSlapple(slapple)
    end
    task.wait(4)
    Serverhop()
 end
-
 
 sborslapov()
