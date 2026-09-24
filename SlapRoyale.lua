@@ -655,7 +655,6 @@ RunService.Heartbeat:Connect(function()
       local throw = game:GetService("ReplicatedStorage").Remotes.Throw
       if TomahawkAutoPredict then
           local velocity = (yourHRP.Position-HRP.Position).Magnitude / 100
-		  print("Tomahawk throwed with prediction: " .. velocity)
           local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
       else
          local velocity = HRP.AssemblyLinearVelocity
@@ -774,6 +773,12 @@ function antiRagdoll()
 end   
 
 RunService.Heartbeat:Connect(function()
+   if plr.Character and plr.Character:FindFirstChild("FakePart Right Arm") then
+      youInragdoll()
+   end   
+end)
+
+RunService.Heartbeat:Connect(function()
     if not antiRagdollEnabled then return end
     antiRagdoll()
 end)
@@ -887,8 +892,6 @@ end
 function youInragdoll()
    if youInRagdoll then return end
    youInRagdoll = true
-   local leg = plr.Character:FindFirstChild("Right Leg")
-   local leg2 = plr.Character:FindFirstChild("Left Leg")
    while plr.Character:FindFirstChild("FakePart Right Arm") do
       if plr.Character.Humanoid.Health <= 0 then break end
       task.wait() 
@@ -1076,8 +1079,7 @@ function smartHumanizedTurn(target)
     local targetCFrame = CFrame.lookAt(HRP.Position, Vector3.new(targetHRP.Position.X, HRP.Position.Y, targetHRP.Position.Z))
     local alpha = 0
     local time = 0
-    local targetAlpha = math.random(85, 100)/ 100
-
+    local targetAlpha = math.random(80, 97)/ 100
     targetCD = true
     plr.Character.Humanoid.AutoRotate = false
     while alpha < targetAlpha do
@@ -1086,11 +1088,14 @@ function smartHumanizedTurn(target)
         local targetHRP = target:FindFirstChild("HumanoidRootPart")
         local targetCFrame = CFrame.lookAt(HRP.Position, Vector3.new(targetHRP.Position.X, HRP.Position.Y, targetHRP.Position.Z))
         local step = 0 
-        step = math.random(20, 50) / 100
-       
+        step = math.random(10, 30) / 100
+
         local multiple = math.random(100000,150000)
         local microNoise = math.random(100, 10000)/ multiple
         alpha = alpha + step + microNoise
+        if alpha >= 1 then
+            alpha = targetAlpha + microNoise
+        end  
         time += 1
         if alpha >= targetAlpha then
             break
@@ -1098,9 +1103,15 @@ function smartHumanizedTurn(target)
         HRP.CFrame = HRP.CFrame:Lerp(targetCFrame, alpha)
         task.wait(0.05)
     end
-    plr.Character.Humanoid.AutoRotate = true
-    task.wait(1 - 0.02* time)
-    targetCD = false
+    task.spawn(function()
+      task.wait(1 - 0.02* time)
+      targetCD = false
+    end)
+   while youInRagdoll do
+      task.wait()
+   end
+    plr.Character.Humanoid.AutoRotate = true 
+    
 end   
 
 
