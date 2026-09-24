@@ -655,7 +655,7 @@ RunService.Heartbeat:Connect(function()
       local throw = game:GetService("ReplicatedStorage").Remotes.Throw
       if TomahawkAutoPredict then
           local velocity = (yourHRP.Position-HRP.Position).Magnitude / 100
-          local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
+          local predictPos = HRP.Position + velocity
       else
          local velocity = HRP.AssemblyLinearVelocity
          local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
@@ -1089,7 +1089,6 @@ function smartHumanizedTurn(target)
         local targetCFrame = CFrame.lookAt(HRP.Position, Vector3.new(targetHRP.Position.X, HRP.Position.Y, targetHRP.Position.Z))
         local step = 0 
         step = math.random(10, 30) / 100
-
         local multiple = math.random(100000,150000)
         local microNoise = math.random(100, 10000)/ multiple
         alpha = alpha + step + microNoise
