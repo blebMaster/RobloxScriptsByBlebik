@@ -74,9 +74,10 @@ local AutoPerms = false
 local antiRagdollEnabled = false
 local SRStats = false
 local TomahawkAura = false
-local TomahawkAuraRadius = 30
+local TomahawkAuraRadius = 50
 local TomahawkAuraPrediction = 0.2
 local TomahawkAutoPredict = true
+local slapAuraMode = "Legit"
 local codes = {   
    ["http://www.roblox.com/asset/?id=9648755440"] = "8", --1
    ["http://www.roblox.com/asset/?id=9648765536"] = "2", --2
@@ -497,6 +498,16 @@ SRTab:CreateToggle({
    end
 })
 
+SRTab:CreateDropdown({
+    name = "Slap Aura mode",
+    multiSelect = false,
+    options = { "Legit","Rage(Slap Royale)" },
+    value = "Legit" ,
+    callback = function(selected)
+        slapAuraMode = selected
+    end,
+})
+
 
 SRTab:CreateToggle({
    Name="Slap Aura ",
@@ -604,9 +615,7 @@ SRTab:CreateSlider({
    end,
 })
 
-function InternalFunctions()
-   if not string.find(identifyexecutor(), "Xeno") and not string.find(identifyexecutor(), "Solara") then
-       SRTab:CreateToggle({
+SRTab:CreateToggle({
          Name="Tomahawk aura ",
          CurrentValue=TomahawkAura,
          Callback=function(v)
@@ -622,8 +631,7 @@ function InternalFunctions()
          TomahawkAuraRadius = v
       end
    })
-   end
-    SRTab:CreateSlider({
+SRTab:CreateSlider({
       Name = "Tomahawk Prediction",
       Range = {0, 1},
       Increment = 0.1,
@@ -640,10 +648,11 @@ function InternalFunctions()
          TomahawkAutoPredict = v
       end
    })
-   AutoPredict:Set(true,true)
-   end
+AutoPredict:Set(true,true)
+
+
 RunService.Heartbeat:Connect(function()
-      if not TomahawkAura then return end
+      if not TomahawkAura  or youInRagdoll then return end
       local Closest = getNearestPlayer(TomahawkAuraRadius)
       if not Closest then return end 
       local tool = plr.Character:FindFirstChildOfClass("Tool")
@@ -653,13 +662,16 @@ RunService.Heartbeat:Connect(function()
       if not HRP then return end
       local yourHRP = plr.Character.HumanoidRootPart
       local throw = game:GetService("ReplicatedStorage").Remotes.Throw
+       local velocity = HRP.AssemblyLinearVelocity
+       local predictPos = nil
       if TomahawkAutoPredict then
-          local velocity = (yourHRP.Position-HRP.Position).Magnitude / 100
-          local predictPos = HRP.Position + velocity
+          local predictStrength = (yourHRP.Position-HRP.Position).Magnitude / 100
+          print(predictStrength)
+          predictPos = HRP.Position + (velocity*predictStrength)
       else
-         local velocity = HRP.AssemblyLinearVelocity
-         local predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
+         predictPos = HRP.Position + (velocity*TomahawkAuraPrediction)
       end
+      if not predictPos then return end
       throw:FireServer(predictPos)
       local whereIThrow = Instance.new("Part")
       whereIThrow.Parent = Workspace
@@ -673,7 +685,6 @@ RunService.Heartbeat:Connect(function()
       whereIThrow:Destroy()
       end) 
    end)     
-InternalFunctions()
 
 SRTab:CreateToggle({
    Name="Auto Perms",
@@ -824,40 +835,51 @@ function kilka(hit)
     if not targetChar:FindFirstChildOfClass("Humanoid") or targetChar.Name == "Crate" then return end
     if targetChar:FindFirstChildOfClass("ForceField") then return end
     if ignorePlayers[targetChar] or youInRagdoll then return end
-    if plr.Character:FindFirstChild("FakePart Right Arm") then youInragdoll() return end
     if targetCD then return end
-    local myRoot = plr.Character:FindFirstChild("HumanoidRootPart")
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot or not targetRoot then return end
-    if raycast(myRoot,hit) then return end
-    targetCD = true
-    local tool = plr.Character:FindFirstChildOfClass("Tool")
-    if not tool then targetCD = false return end
-    local glove = tool:FindFirstChild("Glove")
-    if not glove then targetCD = false return end
-    glove.Position = hit.Position
-    local distance = (targetRoot.Position - myRoot.Position).Magnitude
-	 if SlapTp and distance > 15 then
-	 tpKilka(myRoot,targetRoot)
-	 end
-    task.wait(0.1)
-    mouse1press()
-    plr.Character.Humanoid.AutoRotate = false
-     myRoot.CFrame = CFrame.new(myRoot.Position, Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z))
-    for i = 1,25 do
+   local myRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+   local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+   if not myRoot or not targetRoot then return end
+   if raycast(myRoot,hit) then return end
+   targetCD = true
+   print(slapAuraMode)
+   if slapAuraMode == "Legit" then
+      local tool = plr.Character:FindFirstChildOfClass("Tool")
+      if not tool then targetCD = false return end 
+      local glove = tool:FindFirstChild("Glove")
+      if not glove then targetCD = false return end
       glove.Position = hit.Position
-      if targetChar:FindFirstChild("FakePart Right Arm") or (targetRoot.Position - myRoot.Position).Magnitude > 20 then break end
-      task.wait(0.02)
-    end
-    glove.Position = tool.Handle.Position + (tool.Handle.CFrame.UpVector * 2)
-    task.wait(0.10)
-    if targetChar:FindFirstChild("FakePart Right Arm") then
-      addToIgnore(targetChar)
-    end    
-   plr.Character.Humanoid.AutoRotate = true
-    task.wait(0.50)
-    targetCD = false
+      local distance = (targetRoot.Position - myRoot.Position).Magnitude
+	   if SlapTp and distance > 15 then
+	      tpKilka(myRoot,targetRoot)
+	   end
+      task.wait(0.1)
+      mouse1press()
+      plr.Character.Humanoid.AutoRotate = false
+      myRoot.CFrame = CFrame.new(myRoot.Position, Vector3.new(targetRoot.Position.X, myRoot.Position.Y, targetRoot.Position.Z))
+      for i = 1,25 do
+         glove.Position = hit.Position
+         if targetChar:FindFirstChild("FakePart Right Arm") or (targetRoot.Position - myRoot.Position).Magnitude > 20 then break end
+         task.wait(0.02)
+      end
+      glove.Position = tool.Handle.Position + (tool.Handle.CFrame.UpVector * 2)
+      task.wait(0.10)
+      if targetChar:FindFirstChild("FakePart Right Arm") then
+         addToIgnore(targetChar)
+      end    
+      plr.Character.Humanoid.AutoRotate = true
+      task.wait(0.50)
+      targetCD = false
+   elseif slapAuraMode == "Rage(Slap Royale)" then
+      if SlapTp and distance > 15 then
+	      tpKilka(myRoot,targetRoot)
+	   end
+      game:GetService("ReplicatedStorage").Remotes.Slap:FireServer(hit)
+      task.wait(0.85)
+      targetCD = false
+   end    
 end
+
+
 function getClosestPart(parent)
    local playerCharacter = plr.Character
 	local rootPart = playerCharacter:FindFirstChild("HumanoidRootPart")
@@ -918,7 +940,6 @@ function addToIgnore(player)
       
       task.wait(0.2)
       ignorePlayers[player] = nil
-      
       if player:FindFirstChild("Highlight") then
          player.Highlight.FillColor = Color3.fromRGB(255, 0, 0)
       end
@@ -928,10 +949,12 @@ end
 
 RunService.RenderStepped:Connect(function()
    for i,v in pairs(Players:GetPlayers()) do
+      if v == plr then continue end
+      if table.find(friends, v.Name) then continue end
       if v.Character and v.Character:FindFirstChild("FakePart Right Arm") and not ignorePlayers[v.Character] then
          addToIgnore(v.Character)
       end   
-   end   
+   end 
 end)  
 
 function toolActivate()
