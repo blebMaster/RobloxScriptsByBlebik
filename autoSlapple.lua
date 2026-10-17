@@ -61,8 +61,14 @@ function Serverhop()
     local successReq, req = pcall(function()
         return game:HttpGet("https://games.roblox.com/v1/games/"..tostring(6403373529).."/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true")
     end)
-        
+    if not req or #req < 10 then
+        print("ошибка req пуст")
+        task.wait(1)
+        Serverhop()
+        return
+    end
     if successReq then
+        print(req)
         local body = HttpService:JSONDecode(req)
         if body and body.data then
             for _, v in next, body.data do
