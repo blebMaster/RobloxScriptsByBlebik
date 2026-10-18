@@ -1,0 +1,518 @@
+-- local Storage = game:GetService("ReplicatedStorage")
+
+-- Storage.Rockmode:FireServer()
+-- task.wait(3)
+-- Storage.DeactivateRockmode:FireServer()
+
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
+
+-- ════════════════════════════════════════════════════════════════
+-- IMPROVED ANTI-CHEAT BYPASS — 300s TIMEOUT FIX
+-- Key changes: heartbeat simulation, timer neutralization,
+-- safe return values instead of task.wait(9e10)
+-- ════════════════════════════════════════════════════════════════
+
+local Hooked = {}
+local Detected, Kill
+local HeartbeatRemotes = {}
+local SafeReturnValues = {}
+
+pcall(function() setthreadidentity(2) end)
+
+-- ─── PHASE 1: INITIAL DETECTION & HOOK ───────────────────────────
+for i, v in pairs(getgc(true)) do
+    if typeof(v) == "table" then
+        local DetectFunc = rawget(v, "Detected")
+        local KillFunc = rawget(v, "Kill")
+
+        if typeof(DetectFunc) == "function" and not Detected then
+            Detected = DetectFunc
+            -- CHANGED: Return true immediately, no hang
+            hookfunction(DetectFunc, newcclosure(function(Action, Info, NoCrash)
+                return true
+            end))
+            table.insert(Hooked, DetectFunc)
+        end
+
+        if rawget(v, "Variables") and rawget(v, "Process") and typeof(KillFunc) == "function" and not Kill then
+            Kill = KillFunc
+            hookfunction(KillFunc, newcclosure(function(Info)
+                return nil
+            end))
+            table.insert(Hooked, KillFunc)
+        end
+
+        -- Neutralize kick via indexInstance
+        if pcall(function() return rawget(v, "indexInstance") end)
+        and type(rawget(v, "indexInstance")) == "table"
+        and rawget(v, "indexInstance")[1] == "kick" then
+            print(v.Name)
+            pcall(function() setreadonly(v, false) end)
+            local kickBlock = {
+                "kick",
+                function()
+                    return game.Workspace:WaitForChild("\0", math.huge)
+                end
+            }
+            rawset(v, "tvk", kickBlock)
+            rawset(v, "indexInstance", kickBlock)
+            
+        end
+    end
+end
+
+-- ─── PHASE 2: HEARTBEAT REMOTE DETECTION ─────────────────────────
+-- Scan workspace for remotes that likely expect periodic responses
+local function ScanForHeartbeatRemotes()
+    local Services = {
+        game:GetService("ReplicatedStorage"),
+        game:GetService("ReplicatedFirst"),
+        game:GetService("Workspace")
+    }
+    
+    for _, service in ipairs(Services) do
+        pcall(function()
+            for _, obj in ipairs(service:GetDescendants()) do
+                if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+                    local name = obj.Name:lower()
+                    if name:find("heartbeat") or name:find("keepalive")
+                    or name:find("ping") or name:find("check")
+                    or name:find("verify") or name:find("sync")
+                    or name:find("alive") or name:find("response")
+                    or name:find("timeout") or name:find("interval") then
+                        local exists = false
+                        for _, existing in ipairs(HeartbeatRemotes) do
+                            if existing.remote == obj then
+                                exists = true
+                                break
+                            end
+                        end
+                        if not exists then
+                            table.insert(HeartbeatRemotes, {
+                                remote = obj,
+                                type = obj.ClassName,
+                                lastFired = 0
+                            })
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end
+
+ScanForHeartbeatRemotes()
+
+-- ─── PHASE 3: FIX DETECTION GC DETOUR ────────────────────────────
+-- ORIGINAL PROBLEM: task.wait(9e10) hangs forever → server timeout
+-- FIX: Return immediately with safe values, no hang
+pcall(function()
+    local DetectedGC = filtergc("function", {
+        Constants = {" - On Xbox", " - On mobile", "_"},
+        IgnoreExecutor = true,
+    }, true)
+
+    if DetectedGC then
+        local iDetour = Hooks.new(REnv.debug.info)
+        local dDetour = Hooks.new(DetectedGC)
+
+        local a, b, c, d, e, f = debug.info(DetectedGC, "slanf")
+
+        iDetour:SetDetour(function(...)
+            local Args = {...}
+            if Args[1] == DetectedGC and Args[2] == "slanf" then
+                return a, b, c, d, e, f
+            end
+            return iDetour:Original(...)
+        end)
+
+        -- CHANGED: Return immediately instead of task.wait(9e10)
+        -- The original hang is what causes the 300s timeout
+        dDetour:SetDetour(function(...)
+            -- Return safe default values that pass server validation
+            return true
+        end)
+
+        iDetour:Enable()
+        dDetour:Enable()
+    end
+end)
+
+-- ─── PHASE 4: DEBUG.INFO HOOK (keep, but no coroutine.yield) ─────
+local OldDebugInfo
+OldDebugInfo = hookfunction(getrenv().debug.info, newcclosure(function(...)
+    local LevelOrFunc = ...
+    if Detected and LevelOrFunc == Detected then
+        -- CHANGED: Return valid debug info instead of yielding
+        -- coroutine.yield() hangs the thread → server sees no response
+        local a, b, c, d, e, f = OldDebugInfo(...)
+        return a, b, c, d, e, f
+    end
+    return OldDebugInfo(...)
+end))
+
+-- ─── PHASE 5: IMPROVED METATABLE HOOK ────────────────────────────
+-- CHANGED: Don't blindly block all "Detect"/"Fire" FireServer calls
+-- Only block actual flagging, allow heartbeat checks through
+setthreadidentity(7)
+local hook
+hook = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local selfName = tostring(self)
+    local selfLower = selfName:lower()
+
+    if method == "FireServer" then
+        -- Block actual ban/kick/damage reports
+        if selfName == "Damage" or
+        selfName:find("Ban") or
+        selfName:find("Kick") or
+        selfName:find("FlagPlayer") or
+        selfName:find("ReportPlayer") then
+            return nil
+        end
+        
+        -- CHANGED: Allow heartbeat/sync/check remotes through
+        -- The original blocked everything with "Detect" which
+        -- might include heartbeat response remotes
+        if selfName:find("Detect") and not
+        (selfLower:find("heartbeat") or selfLower:find("sync")
+        or selfLower:find("keepalive") or selfLower:find("check")) then
+            return nil
+        end
+        
+        -- Track heartbeat fires for timing
+        for _, hb in ipairs(HeartbeatRemotes) do
+            if self == hb.remote then
+                hb.lastFired = tick()
+            end
+        end
+    end
+
+    if method == "InvokeServer" then
+        -- Same logic for RemoteFunctions
+        if selfName:find("Ban") or selfName:find("Kick") or
+        selfName:find("Flag") or selfName:find("Report") then
+            return nil
+        end
+    end
+
+    if method == "Kick" then
+        if self == game:GetService("Players").LocalPlayer then
+            return nil
+        end
+    end
+
+    return hook(self, ...)
+end)
+
+-- ─── PHASE 6: HOOK SUSPICIOUS FUNCTIONS ──────────────────────────
+for i, v in pairs(getgc(true)) do
+    if typeof(v) == "function" then
+        local ok, info = pcall(debug.getinfo, v)
+        if ok and info then
+            local name = info.name or ""
+            if name:find("Detect") or name:find("AntiCheat") or
+            name:find("Security") or name:find("Check") then
+                pcall(function()
+                    print(name)
+                    hookfunction(v, newcclosure(function(...)
+                        return nil
+                    end))
+                    table.insert(Hooked, v)
+                end)    
+            end
+            
+            -- NEW: Hook timer/countdown functions
+            if name:find("Timer") or name:find("Countdown") or
+            name:find("Timeout") or name:find("Expire") then
+                pcall(function()
+                    hookfunction(v, newcclosure(function(...)
+                        return 0
+                    end))
+                    table.insert(Hooked, v)
+                end)
+            end
+        end
+    end
+end
+
+-- ─── PHASE 7: HEARTBEAT SIMULATION LOOP ──────────────────────────
+-- This is the core fix for the 300s timeout
+-- Periodically fire heartbeat remotes so the server
+-- never triggers the "no response" kick
+task.spawn(function()
+    while task.wait(5) do
+        pcall(function()
+            local player = game:GetService("Players").LocalPlayer
+            if not player then return end
+            
+            for _, hb in ipairs(HeartbeatRemotes) do
+                pcall(function()
+                    local remote = hb.remote
+                    if remote and remote.Parent then
+                        if remote:IsA("RemoteEvent") then
+                            -- Fire with safe default args
+                            remote:FireServer()
+                        elseif remote:IsA("RemoteFunction") then
+                            -- Invoke with safe default args
+                            pcall(function()
+                                remote:InvokeServer()
+                            end)
+                        end
+                        hb.lastFired = tick()
+                    end
+                end)
+            end
+            
+            -- Also scan for newly created remotes
+            ScanForHeartbeatRemotes()
+        end)
+    end
+end)
+
+-- ─── PHASE 8: ENHANCED MONITORING ────────────────────────────────
+-- CHANGED: 1s interval instead of 3s, catches re-hooks faster
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            for i, v in pairs(getgc(true)) do
+                if typeof(v) == "table" then
+                    -- Re-hook Detected if unhooked
+                    local DetectFunc = rawget(v, "Detected")
+                    if typeof(DetectFunc) == "function" and not table.find(Hooked, DetectFunc) then
+                        hookfunction(DetectFunc, newcclosure(function(Action, Info, NoCrash)
+                            return true
+                        end))
+                        table.insert(Hooked, DetectFunc)
+                    end
+
+                    -- Re-hook Kill if unhooked
+                    local KillFunc = rawget(v, "Kill")
+                    if typeof(KillFunc) == "function" and not table.find(Hooked, KillFunc) then
+                        hookfunction(KillFunc, newcclosure(function(Info)
+                            return nil
+                        end))
+                        table.insert(Hooked, KillFunc)
+                    end
+
+                    -- Re-neutralize kick tables
+                    if pcall(function() return rawget(v, "indexInstance") end)
+                    and type(rawget(v, "indexInstance")) == "table"
+                    and rawget(v, "indexInstance")[1] == "kick" then
+                        pcall(function() setreadonly(v, false) end)
+                        local kickBlock = {
+                            "kick",
+                            function()
+                                return game.Workspace:WaitForChild("\0", math.huge)
+                            end
+                        }
+                        rawset(v, "tvk", kickBlock)
+                        rawset(v, "indexInstance", kickBlock)
+                    end
+                    
+                    -- NEW: Check for timer constants (300, 300.0, etc)
+                    for key, val in pairs(v) do
+                        if type(val) == "number" and val == 300 then
+                            pcall(function() setreadonly(v, false) end)
+                            rawset(v, key, math.huge)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ─── PHASE 9: ANTI-TIMEOUT COUNTER RESET ─────────────────────────
+-- Find any counter that counts up to 300 and reset it
+task.spawn(function()
+    while task.wait(10) do
+        pcall(function()
+            for i, v in pairs(getgc(true)) do
+                if typeof(v) == "table" then
+                    for key, val in pairs(v) do
+                        if type(val) == "number" and val > 200 and val < 400 then
+                            -- Likely a timeout counter, reset it
+                            pcall(function() setreadonly(v, false) end)
+                            rawset(v, key, 0)
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ─── STATUS OUTPUT ───────────────────────────────────────────────
+print("═══════════════════════════════════════")
+print("[✓] Detected: " .. (Detected and "HOOKED" or "NOT FOUND"))
+print("[✓] Kill: " .. (Kill and "HOOKED" or "NOT FOUND"))
+print("[✓] Total Hooked: " .. #Hooked)
+print("[✓] Metatable Hook: ACTIVE")
+print("[✓] Debug.Info Hook: ACTIVE (no-yield fix)")
+print("[✓] Heartbeat Remotes Found: " .. #HeartbeatRemotes)
+print("[✓] Heartbeat Simulation: ACTIVE (5s interval)")
+print("[✓] Timer Counter Reset: ACTIVE (10s interval)")
+print("[✓] Monitoring: ACTIVE (1s interval)")
+print("[✓] 300s Timeout Fix: APPLIED")
+print("═══════════════════════════════════════")
+local Hooked = {}
+local Detected, Kill
+
+pcall(function() setthreadidentity(2) end)
+
+for i, v in pairs(getgc(true)) do
+    if typeof(v) == "table" then
+        local DetectFunc = rawget(v, "Detected")
+        local KillFunc = rawget(v, "Kill")
+
+        if typeof(DetectFunc) == "function" and not Detected then
+            Detected = DetectFunc
+            hookfunction(DetectFunc, function(Action, Info, NoCrash)
+                return true
+            end)
+            table.insert(Hooked, DetectFunc)
+        end
+
+        if rawget(v, "Variables") and rawget(v, "Process") and typeof(KillFunc) == "function" and not Kill then
+            Kill = KillFunc
+            hookfunction(KillFunc, function(Info)
+                return nil
+            end)
+            table.insert(Hooked, KillFunc)
+        end
+        if pcall(function() return rawget(v, "indexInstance") end)
+        and type(rawget(v, "indexInstance")) == "table"
+        and rawget(v, "indexInstance")[1] == "kick" then
+            pcall(function() setreadonly(v, false) end)
+            rawset(v, "tvk", {
+                "kick",
+                function()
+                    return game.Workspace:WaitForChild("\0", math.huge)
+                end
+            })
+            rawset(v, "indexInstance", {
+                "kick",
+                function()
+                    return game.Workspace:WaitForChild("\0", math.huge)
+                end
+            })
+        end
+    end
+end
+
+pcall(function()
+    local DetectedGC = filtergc("function", {
+        Constants = {" - On Xbox", " - On mobile", "_"},
+        IgnoreExecutor = true,
+    }, true)
+
+    if DetectedGC then
+        local iDetour = Hooks.new(REnv.debug.info)
+        local dDetour = Hooks.new(DetectedGC)
+
+        local a, b, c, d, e, f = debug.info(DetectedGC, "slanf")
+
+        iDetour:SetDetour(function(...)
+            local Args = {...}
+            if Args[1] == DetectedGC and Args[2] == "slanf" then
+                return a, b, c, d, e, f
+            end
+            return iDetour:Original(...)
+        end)
+
+        dDetour:SetDetour(function()
+            return task.wait(9e10)
+        end)
+
+        iDetour:Enable()
+        dDetour:Enable()
+    end
+end)
+
+local OldDebugInfo; OldDebugInfo = hookfunction(getrenv().debug.info, newcclosure(function(...)
+    local LevelOrFunc = ...
+    if Detected and LevelOrFunc == Detected then
+        return coroutine.yield()
+    end
+    return OldDebugInfo(...)
+end))
+
+setthreadidentity(7)
+local hook
+hook = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local selfName = tostring(self)
+
+    if method == "FireServer" then
+        if selfName == "Fire" or selfName == "Damage" or
+        selfName:find("Detect") or selfName:find("Ban") or
+        selfName:find("Kick") then
+            return nil
+        end
+    end
+
+    if method == "Kick" then
+        if self == game:GetService("Players").LocalPlayer then
+            return nil
+        end
+    end
+
+    return hook(self, ...)
+end)
+
+for i, v in pairs(getgc(true)) do
+    if typeof(v) == "function" then
+        local ok, info = pcall(debug.getinfo, v)
+        if ok and info then
+            local name = info.name or ""
+            if name:find("Detect") or name:find("AntiCheat") or
+            name:find("Security") or name:find("Check") then
+                pcall(function()
+                    hookfunction(v, function(...)
+                        return nil
+                    end)
+                    table.insert(Hooked, v)
+                end)
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while task.wait(3) do
+        pcall(function()
+            for i, v in pairs(getgc(true)) do
+                if typeof(v) == "table" then
+                    local DetectFunc = rawget(v, "Detected")
+                    if typeof(DetectFunc) == "function" and not table.find(Hooked, DetectFunc) then
+                        hookfunction(DetectFunc, function(Action, Info, NoCrash)
+                            return true
+                        end)
+                        table.insert(Hooked, DetectFunc)
+                    end
+                    if pcall(function() return rawget(v, "indexInstance") end)
+                    and type(rawget(v, "indexInstance")) == "table"
+                    and rawget(v, "indexInstance")[1] == "kick"
+                    then
+                        pcall(function() setreadonly(v, false) end)
+                        rawset(v, "tvk", {
+                            "kick",
+                            function()
+                                return game.Workspace:WaitForChild("\0", math.huge)
+                            end
+                        })
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+print("[✓] Detected: " .. (Detected and "HOOKED" or "NOT FOUND"))
+print("[✓] Kill: " .. (Kill and "HOOKED" or "NOT FOUND"))
+print("[✓] Total Hooked: " .. #Hooked)
+print("[✓] Metatable Hook: ACTIVE")
+print("[✓] Debug.Info Hook: ACTIVE")
+print("[✓] Monitoring: ACTIVE")
