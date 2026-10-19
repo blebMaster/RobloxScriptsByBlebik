@@ -1,0 +1,415 @@
+--FULL AI CODE ONLY SLAP AURA WAS WROTE BY BLEBIK
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- НАСТРОЙКИ КРУЖЕНИЯ И АВТО-ОБХОДА
+local ORBIT_RADIUS = 6   
+local ORBIT_SPEED = 5    
+local currentAngle = 0   
+local MAX_DISTANCE = 500 
+
+-- =========================================================================
+-- НАСТРОЙКИ СИНХРОНИЗАЦИИ МЕЖДУ ОКНАМИ
+-- =========================================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local PathfindingService = game:GetService("PathfindingService")
+
+local plr = Players.LocalPlayer
+local MY_NAME = plr.Name
+
+-- НАСТРОЙКА РОЛЕЙ (ЗАПОЛНИ ЭТИ ПЕРЕМЕННЫЕ)
+
+-- !!! ЗАПОЛНИ ТОЛЬКО ЭТУ ПЕРЕМЕННУЮ !!!
+local MAIN_BOT_NAME = "SlapRoyaleBot4" 
+
+local START_GATHER_DIST = 5 -- Дистанция для изначального сбора (подойти вплотную)
+local MAX_AWAY_DISTANCE = 50 -- Максимальный отход в бою: если ушел дальше, бежит назад
+local isMainBot = (MY_NAME == MAIN_BOT_NAME)
+local activateTarget = false -- Флаг работы бота (Кнопка H)
+local FriendList ={"SlapRoyaleBot4","SlapRoyaleBot11","SlapRoyaleBot12"}
+local targetCD = false
+local youInRagdoll = false
+local ignorePlayers ={}
+
+-- Настройки «мозга» Pathfinding
+local path = PathfindingService:CreatePath({
+    AgentRadius = 2.5,       -- Радиус обхода углов
+    AgentHeight = 5,         
+    AgentCanJump = true,     -- Разрешить прыжки в маршруте
+    WaypointSpacing = 4      -- Расстояние между точками пути
+})
+
+local lastPathComputation = 0
+local currentWaypoints = {}
+local currentWaypointIndex = 1
+
+-- Функция поиска Главного бота
+local function getMainBotCharacter()
+    local mainPlayer = Players:FindFirstChild(MAIN_BOT_NAME)
+    if mainPlayer and mainPlayer.Character and mainPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return mainPlayer.Character, mainPlayer.Character.HumanoidRootPart
+    end
+    return nil, nil
+end
+
+-- Функция поиска ближайшего врага
+function getNearestHumanoidRootPart()
+    local myRoot = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local nearestPlayer = nil
+    local shortestDistance = math.huge 
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == plr then continue end 
+        if player.Name == MAIN_BOT_NAME then continue end 
+        if table.find(FriendList, player.Name) then continue end
+        local enemyChar = player.Character 
+        local enemyRoot = enemyChar and enemyChar:FindFirstChild("HumanoidRootPart")
+        local enemyHumanoid = enemyChar and enemyChar:FindFirstChildOfClass("Humanoid")
+        
+        if enemyRoot and enemyHumanoid and enemyHumanoid.Health > 0 then
+            local distance = (myRoot.Position - enemyRoot.Position).Magnitude
+            if distance < shortestDistance and distance < MAX_DISTANCE then
+                shortestDistance = distance
+                nearestPlayer = player    
+            end
+        end
+    end
+    return nearestPlayer, nearestPlayer and nearestPlayer.Character
+end
+local lastPathComputation = 0
+local currentWaypoints = {}
+local currentWaypointIndex = 1
+local isHandlingObstacle = false -- Флаг: обходим ли мы препятствие прямо сейчас
+
+-- Функция умного следования: бег по прямой с переключением на Pathfinding при опасности
+local function pathfindTo(myChar, myRoot, humanoid, targetPosition)
+    local startPos = myRoot.Position
+    local lookDirection = myRoot.CFrame.LookVector
+    
+    ---------------------------------------------------------
+    -- СИСТЕМА ДАТЧИКОВ (ЛУЧЕЙ) ДЛЯ ПРОВЕРКИ СТЕН И ПРОПАСТЕЙ
+    ---------------------------------------------------------
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.FilterDescendantsInstances = {myChar, workspace.CurrentCamera}
+    
+    -- 1. Датчик Стены (смотрим на 8 студов вперед на уровне груди)
+    local wallRayStart = startPos + Vector3.new(0, 2, 0)
+    local wallRayResult = workspace:Raycast(wallRayStart, lookDirection * 8, raycastParams)
+    local isWallAhead = wallRayResult and wallRayResult.Instance and wallRayResult.Instance.CanCollide
+    
+    -- 2. Датчик Пропасти (смотрим вперед на 5 студов и под наклоном вниз на 7 студов)
+    local floorRayStart = startPos + (lookDirection * 5) + Vector3.new(0, -1, 0)
+    local floorRayResult = workspace:Raycast(floorRayStart, Vector3.new(0, -7, 0), raycastParams)
+    -- Если луч ушел в пустоту и ничего не нашел — впереди обрыв/дыра
+    local isCliffAhead = not (floorRayResult and floorRayResult.Instance)
+
+    ---------------------------------------------------------
+    -- ЛОГИКА ПЕРЕКЛЮЧЕНИЯ ИНТЕЛЛЕКТА
+    ---------------------------------------------------------
+    
+    -- Если датчики зафиксировали стену или пропасть, включаем режим "Обход"
+    if isWallAhead or isCliffAhead then
+        isHandlingObstacle = true
+    end
+
+    if isHandlingObstacle then
+        -- Строим умный обходной путь (не чаще чем раз в 0.3 сек)
+        if tick() - lastPathComputation > 0.3 then
+            lastPathComputation = tick()
+            local success, err = pcall(function()
+                path:ComputeAsync(myRoot.Position, targetPosition)
+            end)
+            
+            if success and path.Status == Enum.PathStatus.Success then
+                currentWaypoints = path:GetWaypoints()
+                currentWaypointIndex = 2
+            else
+                currentWaypoints = {}
+                isHandlingObstacle = false -- Если путь не построился, возвращаемся к прямой
+            end
+        end
+
+        -- Движение по точкам обхода
+        if currentWaypoints and #currentWaypoints >= currentWaypointIndex then
+            local targetWaypoint = currentWaypoints[currentWaypointIndex]
+            if targetWaypoint then
+                local waypointPos = targetWaypoint.Position
+                local distanceToWaypoint = (myRoot.Position - waypointPos).Magnitude
+
+                if distanceToWaypoint < 3 then
+                    currentWaypointIndex = currentWaypointIndex + 1
+                end
+
+                if targetWaypoint.Action == Enum.PathWaypointAction.Jump then
+                    humanoid.Jump = true
+                end
+
+                humanoid:MoveTo(waypointPos)
+                return -- Выходим, пока обход не завершится
+            end
+        else
+            -- Если все точки обхода пройдены, выключаем режим препятствия
+            isHandlingObstacle = false
+        end
+    end
+
+    ---------------------------------------------------------
+    -- РЕЖИМ СПРИНТА (Бег по прямой по умолчанию)
+    ---------------------------------------------------------
+    -- Дополнительный микро-прыжок для совсем мелких кочек/ступенек
+    local smallObstacleResult = workspace:Raycast(startPos - Vector3.new(0, 1, 0), lookDirection * 4, raycastParams)
+    if smallObstacleResult and smallObstacleResult.Instance and smallObstacleResult.Instance.CanCollide then
+        local highCheck = workspace:Raycast(startPos + Vector3.new(0, 3, 0), lookDirection * 4, raycastParams)
+        if not highCheck then humanoid.Jump = true end
+    end
+
+    -- Бежим напрямую к финальной цели
+    humanoid:MoveTo(targetPosition)
+end
+
+
+-- Включение/выключение по кнопке H
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    if gameProcessedEvent then return end
+    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.H then
+        activateTarget = not activateTarget
+        if not activateTarget then hasGathered = false end
+        print("Бот (H):", activateTarget and "РАБОТАЕТ" or "ВЫКЛЮЧЕН")
+    end
+end)
+
+-- Основной цикл обновления
+RunService.Stepped:Connect(function(time, deltaTime) 
+    local myChar = plr.Character
+    if not myChar or not activateTarget then return end
+    
+    local humanoid = myChar:FindFirstChild("Humanoid")
+    local myRoot = myChar:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not myRoot then return end
+
+    -- Если это главный бот
+    if isMainBot then
+        local player, char = getNearestHumanoidRootPart()
+        if player and char and char:FindFirstChild("HumanoidRootPart") then
+            local enemyRoot = char:FindFirstChild("HumanoidRootPart")
+            if enemyRoot then
+                local predictedPosition = enemyRoot.Position + (enemyRoot.AssemblyLinearVelocity * 0.3)
+                currentAngle = currentAngle + (ORBIT_SPEED * deltaTime)
+                local orbitGoal = predictedPosition + Vector3.new(math.sin(currentAngle) * ORBIT_RADIUS, 0, math.cos(currentAngle) * ORBIT_RADIUS)
+                
+                pathfindTo(myChar, myRoot, humanoid, orbitGoal)
+            end
+        end
+        return
+    end
+
+    -- Логика для подчиненных ботов:
+    local _, mainRoot = getMainBotCharacter()
+    if not mainRoot then 
+        humanoid:MoveTo(myRoot.Position)
+        return 
+    end
+
+    local distToMain = (myRoot.Position - mainRoot.Position).Magnitude
+
+    ---------------------------------------------------------
+    -- СБОР И БОЙ
+    ---------------------------------------------------------
+    if not hasGathered then
+        -- Шаг 1: Изначальный сбор БУДЕТ использовать полноценный Pathfinding
+        if distToMain > START_GATHER_DIST then
+            pathfindTo(myChar, myRoot, humanoid, mainRoot.Position)
+        else
+            hasGathered = true
+            print("Бот успешно прибыл к Мейну!")
+        end
+    else
+        -- Шаг 2: Контроль дистанции во время боя
+        if distToMain > MAX_AWAY_DISTANCE then
+            hasGathered = false
+            print("Бот убежал далеко! Возвращение к Мейну...")
+        else
+            -- Шаг 3: АТАКА
+            local player, char = getNearestHumanoidRootPart()
+            
+            if player and char and char:FindFirstChild("HumanoidRootPart") then
+                local enemyRoot = char:FindFirstChild("HumanoidRootPart")
+                if enemyRoot then
+                    local predictedPosition = enemyRoot.Position + (enemyRoot.AssemblyLinearVelocity * 0.3)
+                    currentAngle = currentAngle + (ORBIT_SPEED * deltaTime)
+                    local orbitGoal = predictedPosition + Vector3.new(math.sin(currentAngle) * ORBIT_RADIUS, 0, math.cos(currentAngle) * ORBIT_RADIUS)
+                    
+                    pathfindTo(myChar, myRoot, humanoid, orbitGoal)
+                end
+            else
+                -- Если врагов нет, держимся у Мейна
+                if distToMain > 12 then
+                    pathfindTo(myChar, myRoot, humanoid, mainRoot.Position)
+                else
+                    humanoid:MoveTo(myRoot.Position)
+                end
+            end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then return end
+    if youInRagdoll then return end
+    for _, otherPlayer in ipairs(game.Players:GetPlayers()) do
+        if otherPlayer == plr then continue end
+        local isFriend = table.find(FriendList, otherPlayer.Name)
+        if ignorePlayers[otherPlayer.Character] or isFriend then continue end
+
+        local char = otherPlayer.Character
+        if not char then continue end
+        local part,dist = getClosestPart(char)
+        if not part then return end
+        if dist <= 12 then
+            kilka(part)
+        end
+    end
+end)
+
+
+
+
+function kilka(hit)
+    if not toolChecker() then return end
+    local targetChar = hit.Parent
+    if not targetChar then return end
+    if not targetChar:FindFirstChildOfClass("Humanoid") or targetChar.Name == "Crate" then return end
+    if targetChar:FindFirstChildOfClass("ForceField") then return end
+    if ignorePlayers[targetChar] or youInRagdoll then return end
+    if targetCD then return end
+   local myRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+   local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+   if not myRoot or not targetRoot then return end
+   if raycast(myRoot,hit) then return end
+   targetCD = true
+   local tool = plr.Character:FindFirstChildOfClass("Tool")
+    if not tool then 
+        targetCD = false 
+        return 
+    end 
+    local glove = tool:FindFirstChild("Glove")
+    if not glove then 
+        targetCD = false 
+        return
+    end
+    game:GetService("ReplicatedStorage").Remotes.Slap:FireServer(hit)
+    task.wait(0.85)
+    targetCD = false
+end
+
+
+
+
+
+function getClosestPart(parent)
+   local playerCharacter = plr.Character
+	local rootPart = playerCharacter:FindFirstChild("HumanoidRootPart")
+	if not rootPart then return nil end
+	
+	local characterPosition = rootPart.Position
+	local closestPart = nil
+	local shortestDistance = math.huge 
+
+	for _, child in ipairs(parent:GetChildren()) do
+		if child:IsA("BasePart") then
+			local distance = (child.Position - characterPosition).Magnitude
+			if distance < shortestDistance then
+				shortestDistance = distance
+				closestPart = child
+			end
+		end
+	end
+	return closestPart, shortestDistance
+end
+
+
+function raycast(part1,part2)
+local origin = part1.Position
+local direction = part2.Position - origin
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+raycastParams.FilterDescendantsInstances = {plr.Character}
+local result = Workspace:Raycast(origin, direction, raycastParams)
+local Enemychar = part2.Parent
+if result then
+   for i,v in pairs(Enemychar:GetDescendants()) do
+      if v == result.Instance then return false end
+   end
+   return true
+else
+   return false
+end
+end
+
+
+RunService.RenderStepped:Connect(function()
+   for i,v in pairs(Players:GetPlayers()) do
+      if v == plr then continue end
+      if table.find(FriendList, v.Name) then continue end
+      if v.Character and v.Character:FindFirstChild("FakePart Right Arm") and not ignorePlayers[v.Character] then
+         addToIgnore(v.Character)
+      end   
+   end 
+end)  
+
+
+RunService.Heartbeat:Connect(function()
+   if plr.Character and plr.Character:FindFirstChild("FakePart Right Arm") then
+      youInragdoll()
+   end   
+end)
+
+function addToIgnore(player)
+   if ignorePlayers[player] then return end
+   task.spawn(function()
+      ignorePlayers[player] = true
+      
+      if player:FindFirstChild("Highlight") then
+           player.Highlight.FillColor = Color3.fromRGB(36, 26, 235)
+      end
+      
+      while player:FindFirstChild("FakePart Right Arm") do
+          if player.Humanoid.Health <= 0 then
+              break
+          end
+          task.wait(0.01)
+      end
+      
+      task.wait(0.2)
+      ignorePlayers[player] = nil
+      if player:FindFirstChild("Highlight") then
+         player.Highlight.FillColor = Color3.fromRGB(255, 0, 0)
+      end
+   end)
+end
+
+function toolChecker()
+local tool = plr.Character:FindFirstChildOfClass("Tool")
+if not tool or tool.Name == "Glider" then return end
+return true
+end
+
+
+
+function youInragdoll()
+   if youInRagdoll then return end
+   youInRagdoll = true
+   while plr.Character:FindFirstChild("FakePart Right Arm") do
+      if plr.Character.Humanoid.Health <= 0 then break end
+      task.wait() 
+   end
+   youInRagdoll = false
+end
+
+print("Bot Started")
