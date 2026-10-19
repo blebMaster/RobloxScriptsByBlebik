@@ -1,0 +1,22 @@
+local HowLong = 1.5
+local input = game:GetService("UserInputService")
+
+
+sendHook = function(packet)
+    if  packet.PacketId == 161 then
+    packet:Block()
+    print("блокнут")
+    end
+end
+
+function onInputBegan(input, gameProcessed)  
+  if gameProcessed then return end 
+    if input.KeyCode == Enum.KeyCode.Z then
+        raknet.add_send_hook(sendHook)
+        task.wait(HowLong)
+        raknet.remove_send_hook(sendHook)
+    end
+end
+
+
+input.InputBegan:Connect(onInputBegan)
