@@ -1,0 +1,32 @@
+
+keyWords = {"slap","Cd"} -- Write here key words for finding function with this name in game
+
+
+local howManyFound = 0
+print("Начало поиска функций")
+
+for index, word in pairs(keyWords) do 
+    local foundIntable = false 
+    local searchWordLower = string.lower(word) 
+    
+    for i, v in pairs(getgc(true)) do 
+        if typeof(v) == "table" then 
+            for k, DetectFunc in pairs(v) do
+                if typeof(k) == "string" and string.lower(k) == searchWordLower then
+                    if typeof(DetectFunc) == "function" then 
+                        print(word .. " функция существует и находится в таблице") 
+                        howManyFound += 1 
+                        foundIntable = true 
+                        break 
+                    end
+                end
+            end
+            if foundIntable then break end 
+        end 
+    end 
+    if foundIntable then continue end 
+end
+
+
+print("Найденно: " .. howManyFound .. "/" .. #keyWords)
+print("Поиск окончен")
