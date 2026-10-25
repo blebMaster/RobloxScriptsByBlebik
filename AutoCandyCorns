@@ -1,6 +1,5 @@
 local Players = game:GetService("Players")
 local plr = Players.LocalPlayer
-local howLongWait = 0.5
 
 
 while not plr do
@@ -31,21 +30,10 @@ CandyTab:CreateToggle({
    end,
 })
 
-CandyTab:CreateSlider({
-   Name = "CD",
-   Range = {0.1, 1},
-   Increment = 0.1,
-   CurrentValue = howLongWait,
-   Callback = function(v)
-      howLongWait = v
-   end,
-})
-
-
 
 function pickUpCandyCorns()
     local candyCornsFolder = Workspace:FindFirstChild("CandyCorns")
-    if not candyCornsFolder then print("no found folder") return end
+    -- if not candyCornsFolder then print("no found folder") return end
     for i,candycorn in candyCornsFolder:GetChildren() do
         local HRP = plr.Character:FindFirstChild("HumanoidRootPart")
         if not HRP then return end
@@ -54,13 +42,36 @@ function pickUpCandyCorns()
 end
 
 
-while true do
-    task.wait(howLongWait)
-    if CandyPickUp then
-        pickUpCandyCorns()
+
+
+
+function inArena()
+    if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
+        task.wait(1)
+        return inArena()
+    end
+    local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+    if not plr.Character:FindFirstChild("isInArena") or (humanoid and humanoid.Health == 0) then
+        task.wait(1)
+        return inArena()
+    end
+    if not plr.Character:FindFirstChild("isInArena").Value and not plr.Backpack:FindFirstChildOfClass("Tool") then
+        plr.Character:PivotTo(CFrame.new(-1310, 330, 4))
+        task.wait(1)
+        if not plr.Character:FindFirstChild("isInArena").Value and not plr.Backpack:FindFirstChildOfClass("Tool") then 
+            return inArena()
+        end
     end
 end
 
+
+
+while true do
+    if CandyPickUp then
+        pickUpCandyCorns()
+    end
+    task.wait()
+end
 
 
 
