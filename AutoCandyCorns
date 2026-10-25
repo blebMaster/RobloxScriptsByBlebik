@@ -43,11 +43,7 @@ CandyTab:CreateSlider({
 
 
 
-while true do
-    task.wait(howLongWait)
-    if not CandyPickUp then
-        task.wait(howLongWait)
-    end
+function pickUpCandyCorns()
     local candyCornsFolder = Workspace:FindFirstChild("CandyCorns")
     if not candyCornsFolder then print("no found folder") return end
     for i,candycorn in candyCornsFolder:GetChildren() do
@@ -55,6 +51,14 @@ while true do
         if not HRP then return end
         candycorn.Position = HRP.Position
     end    
+end
+
+
+while true do
+    task.wait(howLongWait)
+    if CandyPickUp then
+        pickUpCandyCorns()
+    end
 end
 
 
