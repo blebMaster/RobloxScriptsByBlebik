@@ -44,28 +44,6 @@ end
 
 
 
-
-function inArena()
-    if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then
-        task.wait(1)
-        return inArena()
-    end
-    local humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
-    if not plr.Character:FindFirstChild("isInArena") or (humanoid and humanoid.Health == 0) then
-        task.wait(1)
-        return inArena()
-    end
-    if not plr.Character:FindFirstChild("isInArena").Value and not plr.Backpack:FindFirstChildOfClass("Tool") then
-        plr.Character:PivotTo(CFrame.new(-1310, 330, 4))
-        task.wait(1)
-        if not plr.Character:FindFirstChild("isInArena").Value and not plr.Backpack:FindFirstChildOfClass("Tool") then 
-            return inArena()
-        end
-    end
-end
-
-
-
 while true do
     if CandyPickUp then
         pickUpCandyCorns()
