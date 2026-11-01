@@ -40,13 +40,13 @@ local function formatTable(tbl, depth)
     return "{" .. table.concat(result, ", ") .. "}"
 end
 
-local function logRemote(method, self, args)
+local function logRemote(method, self,Metatable , args)
     if checkcaller() then return end
     
     local path = "Unknown"
     pcall(function() path = self:GetFullName() end)
     
-    
+    -- Игнорируем внутренние сервисы Roblox
     if string.find(path, "ChatService") or string.find(path, "RobloxGui") or string.find(path, "BridgeNet") then 
         return 
     end
@@ -56,8 +56,9 @@ local function logRemote(method, self, args)
     local argCount = args.n or #args
 
     print("----------------------------------------")
-    print(string.format("[REMOTE SPY] Вызов метода: %s", method))
-    print(string.format("[Путь к Remote]: %s", path))
+    print(string.format("[Metatable Method]: %s", Metatable))
+    print(string.format("[REMOTE SPY] Вызов: %s", method))
+    print(string.format("[Путь]: %s", path))
     print(string.format("[Кол-во аргументов]: %d", argCount))
     print(string.format("[Кто вызвал]: %s", callingPath))
     print("[Аргументы]:")
@@ -92,33 +93,6 @@ end
 
 
 
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-    local method = getnamecallmethod()                                   
-    if method == "Kick" and self == LocalPlayer then
-            local args = {...}
-            local reason = args[1] or "Без причины"
-            print(string.format("[ANTI-KICK]: Игра попыталась кикнуть вас! Причина: %s", tostring(reason)))
-            return nil
-    end
-
-    if method == "FireServer" or method == "InvokeServer" then
-        local path = "Unknown"
-        pcall(function() path = self:GetFullName() end)
-        if string.find(path, "Remotes.Grab") then
-            print("Был вызван Grab но был перехвачен и отправлено: safeLogTemplate")
-            setnamecallmethod(method)
-            return oldNamecall(self, safeLogTemplate)
-        end
-        logRemote(method, self,"__namecall", table.pack(...))
-    end
-    setnamecallmethod(method)
-    return oldNamecall(self, ...)
-end))
-
-
-
-
 
 oth.hook(c_FireServer, function(self, ...)
     if not checkcaller() then
@@ -133,7 +107,7 @@ oth.hook(c_FireServer, function(self, ...)
             return original(self, safeLogTemplate)
         end
         
-        logRemote("FireServer", "__index", table.pack(...))
+        logRemote("FireServer", self,"__index", table.pack(...))
     end
     
    
@@ -153,7 +127,7 @@ oth.hook(c_InvokeServer, function(self, ...)
             return original(self, safeLogTemplate)
         end
         
-        logRemote("InvokeServer", "__index", table.pack(...))
+        logRemote("InvokeServer", self,"__index", table.pack(...))
     end
     
     return oth.get_root_callback()(self, ...)
@@ -170,5 +144,6 @@ oth.hook(c_Kick, function(self, ...)
     return oth.get_root_callback()(self, ...)
 end)
 
-print("[Remote Spy ]: Успешно запущен")
 
+
+print("[Remote Spy ]: Успешно запущен")
