@@ -1,6 +1,18 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+
+local emptyRemoteEvent = Instance.new("RemoteEvent")
+local emptyRemoteFunction = Instance.new("RemoteFunction")
+local c_FireServer = emptyRemoteEvent.FireServer
+local c_InvokeServer = emptyRemoteFunction.InvokeServer
+local c_Kick = LocalPlayer.Kick
+
+
+emptyRemoteEvent:Destroy()
+emptyRemoteFunction:Destroy()
+
+
 local safeLogTemplate = {
     ["MessageInfo"] = {
         [1] = "GrabLocal active"
@@ -76,16 +88,34 @@ local function logRemote(method, self, args)
 end
 
 
-local emptyRemoteEvent = Instance.new("RemoteEvent")
-local emptyRemoteFunction = Instance.new("RemoteFunction")
-
-local c_FireServer = emptyRemoteEvent.FireServer
-local c_InvokeServer = emptyRemoteFunction.InvokeServer
-local c_Kick = LocalPlayer.Kick
 
 
-emptyRemoteEvent:Destroy()
-emptyRemoteFunction:Destroy()
+
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+    local method = getnamecallmethod()                                   
+    if method == "Kick" and self == LocalPlayer then
+            local args = {...}
+            local reason = args[1] or "Без причины"
+            print(string.format("[ANTI-KICK]: Игра попыталась кикнуть вас! Причина: %s", tostring(reason)))
+            return nil
+    end
+
+    if method == "FireServer" or method == "InvokeServer" then
+        local path = "Unknown"
+        pcall(function() path = self:GetFullName() end)
+        if string.find(path, "Remotes.Grab") then
+            print("Был вызван Grab но был перехвачен и отправлено: safeLogTemplate")
+            setnamecallmethod(method)
+            return oldNamecall(self, safeLogTemplate)
+        end
+        logRemote(method, self,"__namecall", table.pack(...))
+    end
+    setnamecallmethod(method)
+    return oldNamecall(self, ...)
+end))
+
 
 
 
@@ -103,7 +133,7 @@ oth.hook(c_FireServer, function(self, ...)
             return original(self, safeLogTemplate)
         end
         
-        logRemote("FireServer", self, table.pack(...))
+        logRemote("FireServer", "__index", table.pack(...))
     end
     
    
@@ -123,7 +153,7 @@ oth.hook(c_InvokeServer, function(self, ...)
             return original(self, safeLogTemplate)
         end
         
-        logRemote("InvokeServer", self, table.pack(...))
+        logRemote("InvokeServer", "__index", table.pack(...))
     end
     
     return oth.get_root_callback()(self, ...)
